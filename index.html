@@ -1,31 +1,225 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>Website Absen TKJ</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: Arial;
-            text-align: center;
-            background: #f2f2f2;
-        }
-        h1 {
-            color: blue;
-        }
-        button {
-            padding: 10px 20px;
-            background: blue;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Absensi Digital Sekolah</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to bottom, #1bb3e9, #1ec8a5);
+    min-height: 100vh;
+}
+
+.card {
+    background: white;
+    width: 330px;
+    margin: 40px auto;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+h2, h3 {
+    text-align: center;
+}
+
+.sub {
+    text-align: center;
+    color: gray;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+input, button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 8px;
+}
+
+input {
+    border: 1px solid #ccc;
+}
+
+button {
+    border: none;
+    background: #1bb3e9;
+    color: white;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #1596c4;
+}
+
+button.red {
+    background: #e74c3c;
+}
+
+button.green {
+    background: #2ecc71;
+}
+
+button.gray {
+    background: #7f8c8d;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 10px;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 5px;
+    text-align: center;
+}
+</style>
 </head>
+
 <body>
 
-    <h1>Website Absen TKJ</h1>
-    <p>Ini website pertama saya</p>
-    <button>Klik Saya</button>
+<!-- LOGIN -->
+<div class="card" id="loginPage">
+    <h2>Absensi Digital Sekolah</h2>
+    <div class="sub">By ervin</div>
+
+    <input type="text" id="loginUser" placeholder="Username">
+    <input type="password" id="loginPass" placeholder="Password">
+
+    <button onclick="login()">Masuk</button>
+</div>
+
+<!-- HALAMAN MURID -->
+<div class="card" id="muridPage" style="display:none;">
+    <h3>Absen Masuk</h3>
+
+    <input type="text" id="muridNama" placeholder="Masukkan Nama">
+    <input type="text" id="muridKelas" placeholder="Masukkan Kelas">
+
+    <button class="green" onclick="absen()">Absen Sekarang</button>
+    <p id="info" style="text-align:center;"></p>
+
+    <button class="gray" onclick="logout()">Logout</button>
+</div>
+
+<!-- HALAMAN ADMIN -->
+<div class="card" id="adminPage" style="display:none;">
+    <h3>Data Absensi</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nama</th>
+                <th>Kelas</th>
+                <th>Waktu</th>
+            </tr>
+        </thead>
+        <tbody id="dataAbsen"></tbody>
+    </table>
+
+    <button class="red" onclick="hapusData()">Hapus Semua Data</button>
+    <button class="gray" onclick="logout()">Logout</button>
+</div>
+
+<script>
+// AKUN LOGIN
+const adminUser = "admin";
+const adminPass = "admin123";
+
+const muridUser = "murid";
+const muridPass = "murid123";
+
+// LOGIN
+function login() {
+    const user = loginUser.value;
+    const pass = loginPass.value;
+
+    if (!user || !pass) {
+        alert("Lengkapi username dan password");
+        return;
+    }
+
+    loginPage.style.display = "none";
+
+    if (user === adminUser && pass === adminPass) {
+        adminPage.style.display = "block";
+        tampilkanData();
+    } 
+    else if (user === muridUser && pass === muridPass) {
+        muridPage.style.display = "block";
+    } 
+    else {
+        alert("Login gagal");
+        location.reload();
+    }
+}
+
+// ABSEN MURID
+function absen() {
+    const nama = muridNama.value;
+    const kelas = muridKelas.value;
+
+    if (!nama || !kelas) {
+        alert("Nama dan kelas harus diisi");
+        return;
+    }
+
+    const waktu = new Date().toLocaleString();
+
+    let data = localStorage.getItem("absen");
+    data = data ? JSON.parse(data) : [];
+
+    if (!Array.isArray(data)) data = [];
+
+    data.push({ nama, kelas, waktu });
+    localStorage.setItem("absen", JSON.stringify(data));
+
+    info.innerHTML = "✅ Absen berhasil<br>" + waktu;
+}
+
+// TAMPILKAN DATA ADMIN
+function tampilkanData() {
+    const tbody = document.getElementById("dataAbsen");
+    tbody.innerHTML = "";
+
+    const data = JSON.parse(localStorage.getItem("absen")) || [];
+
+    if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3">Belum ada data</td></tr>`;
+        return;
+    }
+
+    data.forEach(d => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${d.nama}</td>
+                <td>${d.kelas}</td>
+                <td>${d.waktu}</td>
+            </tr>
+        `;
+    });
+}
+
+// HAPUS DATA
+function hapusData() {
+    if (confirm("Yakin hapus semua data?")) {
+        localStorage.removeItem("absen");
+        tampilkanData();
+    }
+}
+
+// LOGOUT
+function logout() {
+    location.reload();
+}
+</script>
 
 </body>
 </html>
