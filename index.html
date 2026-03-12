@@ -1,117 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Hand Cube Control</title>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
+<title>Flower Full Animation</title>
 <style>
 body{
-margin:0;
-overflow:hidden;
-background:black;
+    margin:0;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#0d0d0d;
+    overflow:hidden;
+    perspective:1000px;
 }
-video{
-display:none;
+
+/* bunga */
+.flower{
+    position:relative;
+    width:200px;
+    height:200px;
+    transform-style: preserve-3d;
+    animation:spin 12s linear infinite;
+}
+
+.petal{
+    position:absolute;
+    width:90px;
+    height:120px;
+    background: radial-gradient(circle at 50% 30%, #ff4da6, #ff99cc);
+    border-radius:50% 50% 0 0;
+    transform-origin:bottom center;
+    box-shadow:0 0 20px #ff99cc;
+}
+
+.petal:nth-child(1){ transform:rotateY(0deg) translateZ(60px);}
+.petal:nth-child(2){ transform:rotateY(45deg) translateZ(60px);}
+.petal:nth-child(3){ transform:rotateY(90deg) translateZ(60px);}
+.petal:nth-child(4){ transform:rotateY(135deg) translateZ(60px);}
+.petal:nth-child(5){ transform:rotateY(180deg) translateZ(60px);}
+.petal:nth-child(6){ transform:rotateY(225deg) translateZ(60px);}
+.petal:nth-child(7){ transform:rotateY(270deg) translateZ(60px);}
+.petal:nth-child(8){ transform:rotateY(315deg) translateZ(60px);}
+
+/* pusat bunga */
+.center{
+    position:absolute;
+    width:70px;
+    height:70px;
+    background:gold;
+    border-radius:50%;
+    top:65px;
+    left:65px;
+    box-shadow:0 0 30px gold;
+}
+
+/* batang */
+.stem{
+    position:absolute;
+    width:10px;
+    height:200px;
+    background:limegreen;
+    top:160px;
+    left:95px;
+    border-radius:5px;
+}
+
+/* animasi spin */
+@keyframes spin{
+    from{transform:rotateY(0deg);}
+    to{transform:rotateY(360deg);}
+}
+
+/* efek mekar */
+@keyframes bloom{
+    0%{transform:scaleY(0.2) scaleX(0.2);}
+    50%{transform:scaleY(1.2) scaleX(1.2);}
+    100%{transform:scaleY(1) scaleX(1);}
 }
 </style>
 </head>
 <body>
-
-<video id="video"></video>
+<div class="flower">
+    <div class="petal"></div>
+    <div class="petal"></div>
+    <div class="petal"></div>
+    <div class="petal"></div>
+    <div class="petal"></div>
+    <div class="petal"></div>
+    <div class="petal"></div>
+    <div class="petal"></div>
+    <div class="center"></div>
+</div>
+<div class="stem"></div>
 
 <script>
-
-// THREE JS
-let scene = new THREE.Scene();
-let camera = new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,1000);
-
-let renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth,window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-let geometry = new THREE.BoxGeometry(1,1,1);
-let material = new THREE.MeshNormalMaterial();
-let cube = new THREE.Mesh(geometry,material);
-
-scene.add(cube);
-camera.position.z = 3;
-
-function animate(){
-requestAnimationFrame(animate);
-
-cube.rotation.x += 0.01;
-cube.rotation.y += 0.01;
-
-renderer.render(scene,camera);
-}
-
-animate();
-
-
-// HAND TRACKING
-const videoElement = document.getElementById("video");
-
-const hands = new Hands({
-locateFile: (file)=>{
-return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-}
+// bikin kelopak mekar perlahan
+const petals = document.querySelectorAll('.petal');
+petals.forEach((petal, i)=>{
+    petal.style.animation = `bloom 2s ${i*0.2}s forwards`;
 });
-
-hands.setOptions({
-maxNumHands:1,
-modelComplexity:0,
-minDetectionConfidence:0.6,
-minTrackingConfidence:0.6
-});
-
-hands.onResults(results=>{
-
-if(results.multiHandLandmarks.length>0){
-
-let hand = results.multiHandLandmarks[0];
-
-let indexFinger = hand[8];
-let palm = hand[0];
-
-let x = indexFinger.x;
-let y = indexFinger.y;
-
-cube.position.x = (x-0.5)*5;
-cube.position.y = -(y-0.5)*5;
-
-
-// jarak telunjuk ke telapak
-let dx = indexFinger.x - palm.x;
-let dy = indexFinger.y - palm.y;
-let dist = Math.sqrt(dx*dx + dy*dy);
-
-// gesture
-if(dist < 0.1){
-cube.scale.set(2,2,2); // kepalan → besar
-}else{
-cube.scale.set(1,1,1); // buka → normal
-}
-
-}
-
-});
-
-
-const cameraFeed = new Camera(videoElement,{
-onFrame: async ()=>{
-await hands.send({image:videoElement});
-},
-width:640,
-height:480
-});
-
-cameraFeed.start();
-
 </script>
-
 </body>
 </html>
