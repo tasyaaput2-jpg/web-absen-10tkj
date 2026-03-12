@@ -1,245 +1,390 @@
-<!DOCTYPE html>
-<html lang="id">
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Absensi Digital Sekolah</title>
-
-<style>
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: linear-gradient(to bottom, #1bb3e9, #1ec8a5);
-    min-height: 100vh;
-}
-
-.card {
-    background: white;
-    width: 330px;
-    margin: 40px auto;
-    padding: 20px;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-}
-
-h2, h3 {
-    text-align: center;
-}
-
-.sub {
-    text-align: center;
-    color: gray;
-    font-size: 14px;
-    margin-bottom: 15px;
-}
-
-input, button {
-    width: 100%;
-    padding: 10px;
-    margin-top: 10px;
-    border-radius: 8px;
-}
-
-input {
-    border: 1px solid #ccc;
-}
-
-button {
-    border: none;
-    background: #1bb3e9;
-    color: white;
-    font-size: 15px;
-    cursor: pointer;
-}
-
-button:hover {
-    background: #1596c4;
-}
-
-button.red {
-    background: #e74c3c;
-}
-
-button.green {
-    background: #2ecc71;
-}
-
-button.gray {
-    background: #7f8c8d;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-    margin-top: 10px;
-}
-
-th, td {
-    border: 1px solid #ccc;
-    padding: 5px;
-    text-align: center;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dual Mode Interaction - Emotion Orb + Particles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #020205; font-family: 'Segoe UI', sans-serif; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; }
+        #video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); z-index: 1; opacity: 0.7; }
+        
+        .glass-panel {
+            background: rgba(10, 10, 20, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+        .control-btn {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        .control-btn.active {
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.4), rgba(100, 200, 255, 0.1));
+            border: 1px solid rgba(100, 200, 255, 0.5);
+            box-shadow: 0 0 25px rgba(79, 209, 197, 0.3);
+        }
+        #loader-overlay {
+            position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.95);
+            transition: opacity 0.7s ease;
+        }
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #00ffff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .mode-item { transition: all 0.2s ease; opacity: 0.4; transform: scale(0.95); }
+        .mode-item.active { opacity: 1; transform: scale(1.0); color: #22d3ee; font-weight: bold; text-shadow: 0 0 10px rgba(34, 211, 238, 0.4); }
+    </style>
 </head>
-
 <body>
+    <div id="canvas-container"></div>
+    <video id="video" playsinline></video>
+    
+    <div id="loader-overlay">
+        <div class="loader mb-6"></div>
+        <div class="text-cyan-300 text-2xl font-bold tracking-widest uppercase">Dual System</div>
+        <div class="text-gray-500 text-xs mt-3 tracking-widest">INITIALIZING...</div>
+    </div>
 
-<script type="module">
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+    <div class="absolute top-0 left-0 w-full h-full pointer-events-none z-10 p-4 md:p-8 flex flex-col justify-between">
+        <div class="flex justify-between items-start pointer-events-auto gap-4">
+            <div class="glass-panel p-5">
+                <h1 class="text-white text-2xl font-bold mb-2">
+                    <span id="mode-title">Particle Flow</span>
+                    <span class="text-xs text-cyan-400">v3.1</span>
+                </h1>
+                <div class="flex items-center gap-3 bg-black/30 rounded-full px-3 py-1 w-fit border border-white/5">
+                    <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500 transition-all duration-500"></div>
+                    <span id="status-text" class="text-[10px] text-gray-300 font-mono uppercase tracking-wider">Initializing</span>
+                </div>
+                <div id="gesture-modes" class="text-[10px] text-gray-400 mt-3 font-mono border-t border-white/10 pt-2">
+                    <div id="mode-scale" class="mode-item">👋 Five Fingers: Energy Burst (Scale)</div>
+                    <div id="mode-rotate" class="mode-item">☝️ Index Finger: View Rotation</div>
+                    <div id="mode-roll" class="mode-item">✌️ Two Fingers: Plane Roll</div>
+                </div>
+            </div>
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCRLCuwtZK9aqbamVdXwShhiMC9z7ohnqQ",
-  authDomain: "absen-10-tkj.firebaseapp.com",
-  projectId: "absen-10-tkj",
-  storageBucket: "absen-10-tkj.firebasestorage.app",
-  messagingSenderId: "593408014616",
-  appId: "1:593408014616:web:8152521c4e2bda421a866d"
-};
+            <div class="flex gap-3">
+                <button onclick="toggleFullScreen()" class="glass-panel p-4 text-white hover:text-cyan-300 control-btn rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                </button>
+            </div>
+        </div>
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-</script>
+        <div id="particle-controls" class="pointer-events-auto flex flex-col md:flex-row gap-6 items-end md:items-center justify-between w-full">
+            <div class="glass-panel p-2 flex gap-2 overflow-x-auto max-w-full">
+                <button onclick="changeShape('sphere')" class="control-btn active px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="sphere">Nebula</button>
+                <button onclick="changeShape('heart')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="heart">Heart</button>
+                <button onclick="changeShape('saturn')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="saturn">Saturn</button>
+                <button onclick="changeShape('lotus')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="lotus">Lotus</button>
+                <button onclick="changeShape('galaxy')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="galaxy">Galaxy</button>
+                <button onclick="changeShape('jellyfish')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="jellyfish">Jellyfish</button>
+                <button onclick="changeShape('torus')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="torus">Torus</button>
+                <button onclick="changeShape('tornado')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="tornado">Tornado</button>
+                <button onclick="changeShape('doublehelix')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="doublehelix">Double Helix</button>
+                <button onclick="changeShape('cube')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="cube">Cube</button>
+                <button onclick="changeShape('butterfly')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="butterfly">Butterfly</button>
+                <button onclick="changeShape('peachblossom')" class="control-btn px-6 py-3 rounded-lg text-sm text-white font-semibold whitespace-nowrap" data-shape="peachblossom">Peach Blossom</button>
+            </div>
+            <div class="glass-panel p-4 flex items-center gap-4">
+                <span class="text-white text-xs font-mono tracking-wider uppercase">Emission Color</span>
+                <input type="color" id="color-picker" value="#00ffff" class="w-8 h-8 rounded-full cursor-pointer" onchange="updateColor(this.value)">
+            </div>
+        </div>
+    </div>
 
-<!-- LOGIN -->
-<div class="card" id="loginPage">
-    <h2>Absensi Digital Sekolah</h2>
-    <div class="sub">By ervin</div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-    <input type="text" id="loginUser" placeholder="Username">
-    <input type="password" id="loginPass" placeholder="Password">
+        // ==================== 配置 ====================
+        const CONFIG = {
+            PARTICLE_COUNT: 36000,
+            PARTICLE_SIZE: 0.18,
+            VIDEO_WIDTH: 640,
+            VIDEO_HEIGHT: 480,
+            FACE_KEYPOINTS: 468,
+            SATURN_BODY_RATIO: 0.3
+        };
 
-    <button onclick="login()">Masuk</button>
-</div>
+        // ==================== 全局变量 ====================
+        let scene, camera, renderer, composer, controls;
+        let emotionOrb = null;
+        let particles = null;
+        let video, faceDetector, hands;
+        let currentMode = 'hand';
 
-<!-- HALAMAN MURID -->
-<div class="card" id="muridPage" style="display:none;">
-    <h3>Absen Masuk</h3>
+        // 情感球状态
+        let faceMotionScore = 0;
+        let stressLevel = 0;
+        let breathingPhase = 0;
+        const lastFacePositionData = new Float32Array(CONFIG.FACE_KEYPOINTS * 3);
+        let lastFaceTime = 0;
 
-    <input type="text" id="muridNama" placeholder="Masukkan Nama">
-    <input type="text" id="muridKelas" placeholder="Masukkan Kelas">
+        // 粒子系统状态
+        let currentShape = 'sphere';
+        let handInfluence = 0;
+        let isHandDetected = false;
+        let userBaseColor = new THREE.Color(0x00ffff);
+        let targetPositions = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+        let targetColors = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+        let rotationVelocity = { x: 0, y: 0, z: 0 };
+        let previousFingerPos = { x: 0, y: 0 };
+        let smoothedFingerPos = { x: 0, y: 0 };
+        let isTrackingRotation = false;
+        let isTrackingRoll = false;
+        let smoothedIndexTip = { x: 0, y: 0 };
+        let smoothedMiddleTip = { x: 0, y: 0 };
+        let previousRollAngle = 0;
+        let currentStableMode = 'scale';
+        let modeFrameCounter = 0;
+        let lastTimeHandDetected = 0;
+        let clock = new THREE.Clock();
+        // 形状循环及手势“扇巴掌”检测
+        const SHAPES_ORDER = ['sphere','heart','saturn','lotus','galaxy','jellyfish','torus','tornado','doublehelix','cube','butterfly','peachblossom'];
+        let previousPalmPos = { x: 0, y: 0 };
+        let lastSlapTime = 0;
 
-    <button class="green" onclick="absen()">Absen Sekarang</button>
-    <p id="info" style="text-align:center;"></p>
-
-    <button class="gray" onclick="logout()">Logout</button>
-</div>
-
-<!-- HALAMAN ADMIN -->
-<div class="card" id="adminPage" style="display:none;">
-    <h3>Data Absensi</h3>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Nama</th>
-                <th>Kelas</th>
-                <th>Waktu</th>
-            </tr>
-        </thead>
-        <tbody id="dataAbsen"></tbody>
-    </table>
-
-    <button class="red" onclick="hapusData()">Hapus Semua Data</button>
-    <button class="gray" onclick="logout()">Logout</button>
-</div>
-
-<script>
-// AKUN LOGIN
-const adminUser = "admin";
-const adminPass = "admin123";
-
-const muridUser = "murid";
-const muridPass = "murid123";
-
-// LOGIN
-function login() {
-    const user = loginUser.value;
-    const pass = loginPass.value;
-
-    if (!user || !pass) {
-        alert("Lengkapi username dan password");
-        return;
-    }
-
-    loginPage.style.display = "none";
-
-    if (user === adminUser && pass === adminPass) {
-        adminPage.style.display = "block";
-        tampilkanData();
-    } 
-    else if (user === muridUser && pass === muridPass) {
-        muridPage.style.display = "block";
-    } 
-    else {
-        alert("Login gagal");
-        location.reload();
-    }
-}
-
-// ABSEN MURID
-function absen() {
-    const nama = muridNama.value;
-    const kelas = muridKelas.value;
-
-    if (!nama || !kelas) {
-        alert("Nama dan kelas harus diisi");
-        return;
-    }
-
-    const waktu = new Date().toLocaleString();
-
-    let data = localStorage.getItem("absen");
-    data = data ? JSON.parse(data) : [];
-
-    if (!Array.isArray(data)) data = [];
-
-    data.push({ nama, kelas, waktu });
-    localStorage.setItem("absen", JSON.stringify(data));
-
-    info.innerHTML = "✅ Absen berhasil<br>" + waktu;
-}
-
-// TAMPILKAN DATA ADMIN
-function tampilkanData() {
-    const tbody = document.getElementById("dataAbsen");
-    tbody.innerHTML = "";
-
-    const data = JSON.parse(localStorage.getItem("absen")) || [];
-
-    if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan=\"3\">Belum ada data</td></tr>`;
-        return;
-    }
-
-    data.forEach(d => {
-        tbody.innerHTML += `
-            <tr>
-                <td>${d.nama}</td>
-                <td>${d.kelas}</td>
-                <td>${d.waktu}</td>
-            </tr>
+        // ==================== 着色器 ====================
+        const orbVertexShader = `
+            uniform float uTime;
+            uniform float uPulseScale;
+            uniform float uMotionAmplitude;
+            varying vec3 vNormal;
+            void main() {
+                vNormal = normal;
+                vec3 pos = position;
+                // 呼吸缩放提升20%
+                pos *= (1.0 + uPulseScale * 0.216);
+                // 进一步减少圆滑：再提高频率，并显著降低平滑占比
+                float s1 = sin(pos.x * 1.35 + uTime * 2.0);
+                float s2 = sin(pos.y * 1.35 + uTime * 1.7);
+                float s3 = sin(pos.z * 1.1 + uTime * 1.8);
+                float combined = (s1 + s2 + s3) / 3.0;
+                // 极少量平滑，使波形更尖、更有细节
+                combined = combined * 0.92 + smoothstep(-1.0, 1.0, combined) * 0.08;
+                // 幅度提升20%
+                float wave = combined * (0.06 + uMotionAmplitude * 1.44);
+                pos += normal * wave;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            }
         `;
-    });
-}
+        const orbFragmentShader = `
+            uniform float uStressLevel;
+            varying vec3 vNormal;
+            void main() {
+                vec3 lightDir = normalize(vec3(0.5, 0.8, 0.2));
+                float ndl = max(dot(normalize(vNormal), lightDir), 0.0);
+                // 六色渐变：蓝->青->绿->黄->橙->红
+                vec3 color1 = vec3(0.2, 0.3, 0.9);
+                vec3 color2 = vec3(0.1, 0.8, 1.0);
+                vec3 color3 = vec3(0.1, 1.0, 0.6);
+                vec3 color4 = vec3(1.0, 0.9, 0.2);
+                vec3 color5 = vec3(1.0, 0.6, 0.2);
+                vec3 color6 = vec3(1.0, 0.2, 0.2);
+                vec3 color;
+                if (uStressLevel < 0.2) {
+                    color = mix(color1, color2, (uStressLevel - 0.0) / 0.2);
+                } else if (uStressLevel < 0.4) {
+                    color = mix(color2, color3, (uStressLevel - 0.2) / 0.2);
+                } else if (uStressLevel < 0.6) {
+                    color = mix(color3, color4, (uStressLevel - 0.4) / 0.2);
+                } else if (uStressLevel < 0.8) {
+                    color = mix(color4, color5, (uStressLevel - 0.6) / 0.2);
+                } else {
+                    color = mix(color5, color6, (uStressLevel - 0.8) / 0.2);
+                }
+                color = color * (0.5 + ndl * 0.5);
+                gl_FragColor = vec4(color, 0.75);
+            }
+        `;
 
-// HAPUS DATA
-function hapusData() {
-    if (confirm("Yakin hapus semua data?")) {
-        localStorage.removeItem("absen");
-        tampilkanData();
-    }
-}
+        // ==================== 初始化 ====================
+        async function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x020205, 0.02);
 
-// LOGOUT
-function logout() {
-    location.reload();
-}
-</script>
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 30;
 
-</body>
-</html>
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            renderer.setClearColor(0x000000, 0);
+            renderer.setClearColor(0x000000, 0);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Post Processing
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.05;
+            bloomPass.strength = 1.4;
+            bloomPass.radius = 0.6;
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            // OrbitControls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.5;
+
+            await initCamera();
+            await initHandDetector();
+            
+            if (!particles) createParticles();
+            if (video) video.style.display = 'none';
+
+            window.addEventListener('resize', onWindowResize);
+            hideLoader();
+            startHandTracking();
+            animate();
+        }
+
+        function createEmotionOrb() {
+            const geometry = new THREE.SphereGeometry(6, 64, 64);
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uPulseScale: { value: 0 },
+                    uMotionAmplitude: { value: 0 },
+                    uStressLevel: { value: 0 }
+                },
+                vertexShader: orbVertexShader,
+                fragmentShader: orbFragmentShader,
+                transparent: true,
+                blending: THREE.AdditiveBlending
+            });
+            emotionOrb = new THREE.Mesh(geometry, material);
+            scene.add(emotionOrb);
+        }
+
+        function createParticles() {
+            if (particles) scene.remove(particles);
+
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+            const colors = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+
+            generateShapePositions('sphere', positions);
+            generateShapeColors('sphere', colors);
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const sprite = createParticleTexture();
+            const material = new THREE.PointsMaterial({
+                size: CONFIG.PARTICLE_SIZE,
+                map: sprite,
+                color: userBaseColor,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                sizeAttenuation: true,
+                vertexColors: true
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            targetPositions = new Float32Array(positions);
+            targetColors = new Float32Array(colors);
+
+            // 初始让图案正对相机
+            faceCameraAndReset();
+        }
+
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.4, 'rgba(255,255,255,0.5)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 32, 32);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function generateShapePositions(type, array) {
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                let x, y, z;
+                if (type === 'sphere') {
+                    const r = 10 + Math.random() * 2;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    x = r * Math.sin(phi) * Math.cos(theta);
+                    y = r * Math.sin(phi) * Math.sin(theta);
+                    z = r * Math.cos(phi);
+                    if (i < CONFIG.PARTICLE_COUNT * 0.2) { x *= 0.3; y *= 0.3; z *= 0.3; }
+                } else if (type === 'heart') {
+                    const t = Math.PI - 2 * Math.PI * Math.random();
+                    const u = 2 * Math.PI * Math.random();
+                    x = 16 * Math.pow(Math.sin(t), 3);
+                    y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                    z = 6 * Math.cos(t) * Math.sin(u) * Math.sin(t);
+                    const scale = 0.6;
+                    x *= scale; y *= scale; z *= scale;
+                } else if (type === 'saturn') {
+                    if (i < CONFIG.PARTICLE_COUNT * CONFIG.SATURN_BODY_RATIO) {
+                        const r = 5.5;
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        x = r * Math.sin(phi) * Math.cos(theta);
+                        y = r * 0.9 * Math.sin(phi) * Math.sin(theta);
+                        z = r * Math.cos(phi);
+                    } else {
+                        const angle = Math.random() * Math.PI * 2;
+                        const r = 7 + Math.random() * 10;
+                        x = r * Math.cos(angle);
+                        y = (Math.random() - 0.5) * 0.3;
+                        z = r * Math.sin(angle);
+                    }
+                } else if (type === 'lotus') {
+                    const u = Math.random() * Math.PI * 2;
+                    const v = Math.random();
+                    const petals = 7;
+                    const rBase = 8 * (0.5 + 0.5 * Math.pow(Math.sin(petals * u * 0.5), 2)) * v;
+                    x = rBase * Math.cos(u);
+                    z = rBase * Math.sin(u);
+                    y = 4 * Math.pow(v, 2) - 2;
+                } else if (type === 'galaxy') {
+                    const arms = 3;
+                    const spin 
